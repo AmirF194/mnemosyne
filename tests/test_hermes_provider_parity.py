@@ -729,6 +729,7 @@ def test_uninitialized_primary_tool_call_diverges_by_provider(
         ("None", PROVIDER_TOOL_NAMES, False),
         ("null", PROVIDER_TOOL_NAMES, False),
         ("NoNe", PROVIDER_TOOL_NAMES, False),
+        ("  nUlL  ", PROVIDER_TOOL_NAMES, False),
         ("", PROVIDER_TOOL_NAMES, False),
     ],
 )
