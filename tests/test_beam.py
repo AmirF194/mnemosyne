@@ -2963,6 +2963,7 @@ class TestConsolidationHealth:
             [
                 ("s1", 0, "error: provider timeout during consolidation"),
                 ("s1", 0, "consolidation failed: no working memory read lock"),
+                ("s1", 0, "nothing to consolidate"),
             ],
         )
         conn.commit()
