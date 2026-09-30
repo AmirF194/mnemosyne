@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import sqlite3
 
+import pytest
+
 import mnemosyne_hermes
 from mnemosyne_hermes import MnemosyneMemoryProvider
 
@@ -109,3 +111,43 @@ def test_fresh_initialize_supersedes_pending_retry(monkeypatch):
     provider.initialize("sess2")
     assert provider._beam is not None
     assert provider._retry_init_args is None
+
+
+def test_retry_validation_failure_is_reported_not_raised(monkeypatch):
+    """A config edit landing during a pending transient retry must not let
+    _configured_tool_schemas()'s ValueError escape a per-turn surface."""
+    calls = {"n": 0, "fail": 99}
+    monkeypatch.setattr(mnemosyne_hermes, "_get_beam_class", lambda: _locked_beam_class(calls))
+
+    provider = MnemosyneMemoryProvider()
+    provider.initialize("sess")
+    assert provider._beam is None
+    assert provider._retry_init_args is not None
+
+    def _bad_tools_config(self, key):
+        return ["not_a_real_tool"] if key == "tools" else None
+
+    monkeypatch.setattr(MnemosyneMemoryProvider, "_read_config_key", _bad_tools_config)
+    provider._retry_init_at = 0.0
+
+    block = provider.system_prompt_block()
+
+    assert provider._beam is None
+    assert isinstance(provider._init_error, ValueError)
+    assert "Unknown Mnemosyne tool" in str(provider._init_error)
+    # Fail-once: a validation error must not re-arm the retry.
+    assert provider._retry_init_args is None
+    assert "UNAVAILABLE" in block
+    assert "restart Hermes" in block
+
+
+def test_explicit_initialize_still_raises_validation_error(monkeypatch):
+    """The retry path's new except must not swallow #1063 for a direct call."""
+    def _bad_tools_config(self, key):
+        return ["not_a_real_tool"] if key == "tools" else None
+
+    monkeypatch.setattr(MnemosyneMemoryProvider, "_read_config_key", _bad_tools_config)
+
+    provider = MnemosyneMemoryProvider()
+    with pytest.raises(ValueError, match="Unknown Mnemosyne tool"):
+        provider.initialize("sess")

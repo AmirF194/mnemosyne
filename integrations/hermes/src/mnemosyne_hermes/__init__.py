@@ -1360,7 +1360,16 @@ class MnemosyneMemoryProvider(HermesPersonaPromptMixin, MemoryProvider):
             # Keep initialization serialized with on_session_switch(). This
             # prevents a retry that already selected session A from publishing
             # A after a concurrent switch to session B.
-            self.initialize(session_id, **kwargs)
+            try:
+                self.initialize(session_id, **kwargs)
+            except ValueError as e:
+                # An automatic retry must not let a validation failure (#1063)
+                # escape into the per-turn caller; report it like a direct
+                # init failure instead.
+                logger.warning("Mnemosyne retry init failed validation: %s", e)
+                self._init_error = e
+                self._unavailable_reason_code = "init_failed"
+                self._unavailable_reason = ""
 
     def _ensure_initialized_for_tools(self) -> None:
         """Initialize on first tool use when PluginManager never called initialize().
